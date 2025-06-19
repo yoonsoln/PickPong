@@ -70,8 +70,6 @@ public class MainActivity extends AppCompatActivity implements
 
     private static final String TAG = "MainActivity";
     private static final String BASE_URL = "http://192.168.0.241:3000";
-
-    // RoboTemiListeners listeners = new RoboTemiListeners();
     private View btnPick;
     private View btnPong;
     private TextView tvBallPosition;
@@ -79,11 +77,11 @@ public class MainActivity extends AppCompatActivity implements
     // 주기적인 작업을 위한 Handler 및 Runnable
     private Handler movementHandler;
     private Runnable movementRunnable;
-    private final long MOVEMENT_INTERVAL_MS = 100; // 500ms 간격 -> 100ms로 변경
+    private final long MOVEMENT_INTERVAL_MS = 100; // 500ms 간격 -> 현재 100ms로 변경
 
     // 직진 상태 유지를 위한 변수 추가
     private long lastCenterDetectionTimeMillis = 0; // 마지막으로 공이 중앙에 감지된 시간
-    private static final long STRAIGHT_DURATION_MS = 3000; // 직진 상태를 유지할 시간 (3초)
+    private static final long STRAIGHT_DURATION_MS = 3000; // 공 탐지 시, 직진 상태를 유지할 시간 (3초)
     private boolean isForcedStraightMode = false; // 강제 직진 모드 플래그
 
 
@@ -110,7 +108,7 @@ public class MainActivity extends AppCompatActivity implements
         movementRunnable = new Runnable() {
             @Override
             public void run() {
-                // 로봇이 준비되었고, 액티비티가 활성 상태일 때만 실행
+                // 로봇이 준비되었고 액티비티가 활성 상태일 때만 실행
                 if (robot != null && robot.isReady() && !isFinishing() && !isDestroyed()) {
                     getBallPositionData(); // 공 위치를 가져와서 로봇 제어
                     movementHandler.postDelayed(this, MOVEMENT_INTERVAL_MS); // 다음 실행 예약
@@ -122,7 +120,7 @@ public class MainActivity extends AppCompatActivity implements
 
         if (btnPick == null || btnPong == null) {
             Log.e("MainActivity", "Button not found in layout");
-            // return; // 여기서 리턴하면 리스너 등록 등이 실행되지 않으므로 주의
+            // return; // 여기서 리턴하면 리스너 등록 없이 종료
         }
 
         if (btnPick != null) {
@@ -131,15 +129,15 @@ public class MainActivity extends AppCompatActivity implements
                 @Override
                 public void onClick(View view) {
                     // Pick();
-
                     Log.d(TAG, "Pick button clicked. Starting detection and periodic movement.");
-                    // 1. /start_detection POST 요청 (기존과 동일)
 
+                    // 1. /start_detection POST 요청
                     sendPostRequest("/start_detection", new ApiResponseListener() {
                         @Override
                         public void onSuccess(String response) {
                             Log.i(TAG, "/start_detection Success: " + response);
-                            // UI 업데이트는 메인 스레드에서 수행해야 합니다.
+
+                            // UI 업데이트는 메인 스레드에서 수행
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -149,9 +147,7 @@ public class MainActivity extends AppCompatActivity implements
                                         Toast.makeText(MainActivity.this, "탐지 시작: " + status, Toast.LENGTH_SHORT).show();
 
                                         // 2. /start_detection 성공 후, 주기적인 공 위치 확인 및 이동 시작
-                                        startPeriodicMovement(); // <--- 이 부분 수정
-
-                                        // getBallPositionData(); // 새로운 메서드 호출
+                                        startPeriodicMovement(); // <--- 이 부분 수정 (원래는 이거 씀: getBallPositionData(); // 새로운 메서드 호출)
 
                                     } catch (JSONException e) {
                                         Log.e(TAG, "JSON parsing error for /start_detection: ", e);
@@ -245,7 +241,6 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     // 주기적인 움직임 중단 메서드
-
     private void stopPeriodicMovement() {
         Log.d(TAG, "Stopping periodic movement updates.");
         if (movementHandler != null && movementRunnable != null) { // null 체크 추가
@@ -254,9 +249,9 @@ public class MainActivity extends AppCompatActivity implements
         isForcedStraightMode = false; // 주기적 움직임 중단 시 강제 직진 모드 해제
         lastCenterDetectionTimeMillis = 0;
 
-        // 필요하다면 즉시 로봇 움직임 중지
+        // 필요시 즉시 로봇 움직임 중지
         if (robot != null && robot.isReady()) {
-            robot.stopMovement(); // 현재 진행 중인 모든 움직임(skidJoy, turnBy 등)을 중지
+            robot.stopMovement(); // 현재 진행 중인 모든 움직임을 중지
             Log.d(TAG, "Robot movement explicitly stopped in stopPeriodicMovement.");
         }
     }
@@ -293,10 +288,7 @@ public class MainActivity extends AppCompatActivity implements
                     conn.setDoInput(true);        // 응답을 받기 위함
                     conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8"); // 요청 형식
 
-                    // 서버에서 빈 본문을 예상하므로, 빈 바이트 배열을 보냅니다.
                     OutputStream os = conn.getOutputStream();
-                    // 서버는 빈 본문을 예상하므로, 여기서는 아무것도 쓰지 않거나 빈 바이트 배열을 보냅니다.
-                    // os.write(new byte[0]); // 명시적으로 빈 바이트를 보내고 싶다면 이 줄의 주석을 해제합니다.
                     os.flush(); // 버퍼 비우기
                     os.close(); // 스트림 닫기
 
@@ -316,11 +308,11 @@ public class MainActivity extends AppCompatActivity implements
                                 buffer.append(line); // 개행 문자(\n)는 JSON 응답에서 보통 불필요
                             }
                             if (buffer.length() == 0) {
-                                // HTTP OK를 받았지만 응답 본문이 비어있는 경우. 서버의 응답 형식에 따라 정상일 수도, 에러일 수도 있습니다.
-                                // 현재 Node.js 서버는 {"status":"..."} 형태의 JSON을 반환하므로, 비어있다면 문제일 수 있습니다.
+                                // HTTP OK를 받았지만 응답 본문이 비어있는 경우. 서버의 응답 형식에 따라 정상일 수도, 에러일 수도 있음
+                                // 현재 Node.js 서버는 {"status":"..."} 형태의 JSON을 반환하므로, 비어있다면 문제일 수 있음
                                 Log.w(TAG, "Empty response from server for path: " + path + " (HTTP_OK)");
-                                // 이 경우를 에러로 처리할지, 또는 빈 문자열을 성공으로 전달할지 결정해야 합니다.
-                                // 여기서는 빈 문자열을 성공으로 전달하고, 호출부에서 JSON 파싱 시 에러가 발생하도록 합니다.
+                                // 이 경우를 에러로 처리할지, 또는 빈 문자열을 성공으로 전달할지 결정해야 함
+                                // 여기서는 빈 문자열을 성공으로 전달하고, 호출부에서 JSON 파싱 시 에러가 발생하도록 함
                                 responseJsonString = "";
                             } else {
                                 responseJsonString = buffer.toString();
@@ -339,7 +331,7 @@ public class MainActivity extends AppCompatActivity implements
                                 errorBuffer.append(errorLine);
                             }
                             Log.e(TAG, "Error stream content for " + path + ": " + errorBuffer.toString());
-                            // 실제 에러 메시지에 이 내용을 포함할 수도 있습니다.
+                            // 실제 에러 메시지에 이 내용을 포함할 수도 있음
                             errorMessage += " - Details: " + errorBuffer.toString();
                             errorReader.close();
                         }
@@ -370,7 +362,7 @@ public class MainActivity extends AppCompatActivity implements
                     }
 
                     // 콜백 호출
-                    // listener가 null이 아닐 때만 호출합니다.
+                    // listener가 null이 아닐 때만 호출
                     if (listener != null) {
                         if (responseJsonString != null) { // 성공 응답이 있는 경우
                             listener.onSuccess(responseJsonString);
@@ -387,7 +379,6 @@ public class MainActivity extends AppCompatActivity implements
     private void getBallPositionData() {
         sendGetRequest("/get_ball_position", new ApiResponseListener() {
             @Override
-
             public void onSuccess(String response) {
                 Log.i(TAG, "/get_ball_position Success: " + response);
                 runOnUiThread(new Runnable() {
@@ -398,17 +389,9 @@ public class MainActivity extends AppCompatActivity implements
                             int cx = jsonResponse.getInt("cx");
                             int cy = jsonResponse.getInt("cy");
 
-
-
-                            // String ballPositionMessage = "공 위치: cx=" + cx + ", cy=" + cy;
-                            // Log.d(TAG, ballPositionMessage);
-
-
-                            // Toast.makeText(MainActivity.this, ballPositionMessage, Toast.LENGTH_LONG).show(); // Toast 대신 TextView 사용
                             if (tvBallPosition != null) {
                                 tvBallPosition.setText("cx: " + cx + ", cy: " + cy); // TextView 업데이트
                             }
-
                             controlTemiMovementBasedOnCx(cx);
 
                         } catch (JSONException e) {
@@ -421,7 +404,6 @@ public class MainActivity extends AppCompatActivity implements
                     }
                 });
             }
-
             @Override
             public void onError(String errorMessage) {
                 Log.e(TAG, "/get_ball_position Error: " + errorMessage);
@@ -432,8 +414,7 @@ public class MainActivity extends AppCompatActivity implements
                         if (tvBallPosition != null) {
                             tvBallPosition.setText("cx: error, cy: error");
                         }
-                        // 오류 발생 시 로봇을 멈추거나 특정 행동을 하도록 추가할 수 있음
-                        // 예: if (robot != null && robot.isReady()) robot.stopMovement();
+                        // if (robot != null && robot.isReady()) robot.stopMovement(); // 오류 발생 시 로봇을 멈추거나 특정 행동을 하도록 추가할 수 있음
                     }
                 });
             }
@@ -446,14 +427,14 @@ public class MainActivity extends AppCompatActivity implements
             Log.w(TAG, "Robot is not ready or null. Cannot control movement.");
             return;
         }
-
         int screenWidthCenter = 320; // 화면 가로 중앙값 (카메라 해상도 640 기준)
         int deadZone = 80;      // 중앙으로 간주할 오차 허용 범위
         float rotationSpeedFactor = 0.5f; // 회전 속도 인자
         float forwardSpeed = 0.3f;    // 직진 속도
         int rotationAngle = 5; // 기본 회전 각도
 
-        Log.d(TAG, "controlTemiMovementBasedOnCx: cx = " + cx + ", isForcedStraightMode = " + isForcedStraightMode + ", lastCenterDetectionTimeMillis = " + lastCenterDetectionTimeMillis);
+        Log.d(TAG, "controlTemiMovementBasedOnCx: cx = " + cx + ", isForcedStraightMode = " + isForcedStraightMode +
+                ", lastCenterDetectionTimeMillis = " + lastCenterDetectionTimeMillis);
 
         if (cx == -1) { // 공을 찾지 못한 경우
             Log.w(TAG, "Ball not detected (cx = -1).");
@@ -465,12 +446,12 @@ public class MainActivity extends AppCompatActivity implements
                 // 1. 즉시 멈춘다 (아래 로직과 유사하게 isForcedStraightMode = false 처리 후 stopMovement)
                 // 2. 강제 직진 모드를 유지하며 계속 직진한다 (현재 로직)
                 // 3. 강제 직진 모드를 즉시 해제하고, 다음 탐지 사이클에서 다시 판단한다.
-                // 현재는 강제 직진 모드 중에는 cx = -1 이라도 STRAIGHT_DURATION_MS 동안은 계속 직진합니다.
-                // 만약 공을 놓치면 즉시 멈추고 싶다면, 여기서 isForcedStraightMode = false; lastCenterDetectionTimeMillis = 0; robot.stopMovement(); 를 호출할 수 있습니다.
+                // 현재는 강제 직진 모드 중에는 cx = -1 이라도 STRAIGHT_DURATION_MS 동안은 계속 직진
+                // 만약 공을 놓치면 즉시 멈추고 싶다면, 여기서 isForcedStraightMode = false; lastCenterDetectionTimeMillis = 0; robot.stopMovement(); 를 호출할 수 있음
                 Log.d(TAG, "Ball not detected BUT in forced straight mode. Continuing straight or finishing forced mode based on time.");
             }
             // 강제 직진 중이 아니라면, 여기서 반환하여 아래 로직을 실행하지 않음.
-            // 단, 강제 직진 모드일 경우 아래 시간 체크 로직을 타야 하므로, 여기서 바로 return 하지 않도록 주의.
+            // 단, 강제 직진 모드일 경우 아래 시간 체크 로직을 타야 하므로, 여기서 바로 return 하지 않도록 주의
             // if (!isForcedStraightMode) return; // 이 줄을 추가하면, 강제 직진 아닐 때 공 놓치면 바로 끝
         }
 
@@ -478,7 +459,7 @@ public class MainActivity extends AppCompatActivity implements
         if (isForcedStraightMode) {
             long currentTime = SystemClock.elapsedRealtime();
             if (currentTime - lastCenterDetectionTimeMillis < STRAIGHT_DURATION_MS) {
-                // 3초가 지나지 않았으면 계속 직진 (cx 값에 관계없이)
+                // 3초가 지나지 않았으면 계속 직진 (cx 값에 관계 없이)
                 Log.d(TAG, "Forced straight mode: Moving forward.");
                 robot.skidJoy(forwardSpeed, 0);
                 return; // 강제 직진 중이므로 아래 회전/직진 판단 로직 실행 안 함
@@ -494,7 +475,7 @@ public class MainActivity extends AppCompatActivity implements
 
         // --- 강제 직진 모드가 아니거나, 강제 직진 모드가 방금 끝난 경우 아래 로직 실행 ---
 
-        if (cx == -1 && !isForcedStraightMode) { // 강제 직진이 아니고, 공을 못찾았으면 여기서 멈추고 종료.
+        if (cx == -1 && !isForcedStraightMode) { // 강제 직진이 아니고, 공을 못 찾으면 여기서 멈추고 종료
             Log.d(TAG, "Double check: Ball not detected (cx = -1) and not in forced straight mode after forced mode check. Stopping movement.");
             robot.stopMovement();
             return;
@@ -506,7 +487,7 @@ public class MainActivity extends AppCompatActivity implements
             Log.d(TAG, "Ball on the left (cx=" + cx + "). Turning left.");
             robot.turnBy(-rotationAngle, rotationSpeedFactor);
             // 회전 시에는 강제 직진 모드를 활성화하지 않음
-            // isForcedStraightMode = false; // 이미 강제 직진 모드가 아니거나 해제된 상태일 것임
+            // isForcedStraightMode = false; // 이미 강제 직진 모드가 아니거나 해제된 상태일 것
             // lastCenterDetectionTimeMillis = 0;
         } else if (cx > screenWidthCenter + deadZone) { // 공이 오른쪽에 있음
             Log.d(TAG, "Ball on the right (cx=" + cx + "). Turning right.");
@@ -527,7 +508,7 @@ public class MainActivity extends AppCompatActivity implements
             } else {
                 // 이 경우는 거의 발생하지 않음. (위에서 isForcedStraightMode = true 이면 return 되었을 것이므로)
                 // 만약 강제 직진 모드인데 이 로직에 도달했고, 공이 중앙이라면 시간을 갱신할 수도 있지만,
-                // 현재 로직 상으로는 isForcedStraightMode가 true일 때 위에서 return 되므로 여기까지 오지 않음.
+                // 현재 로직 상으로는 isForcedStraightMode가 true일 때 위에서 return 되므로 여기까지 오지 않음
                 // Log.d(TAG, "Ball centered, already in forced straight mode. Time might be updated if logic changes.");
                 // lastCenterDetectionTimeMillis = SystemClock.elapsedRealtime(); // 강제 직진 중 중앙 재확인 시 시간 갱신 (선택적)
             }
@@ -539,7 +520,7 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
-    // HTTP GET 요청을 보내는 메서드 (이전 답변에서 제공한 것과 거의 동일)
+    // HTTP GET 요청을 보내는 메서드
     private void sendGetRequest(final String path, final ApiResponseListener listener) {
         new Thread(new Runnable() {
             @Override
@@ -574,8 +555,7 @@ public class MainActivity extends AppCompatActivity implements
                             }
                             if (buffer.length() == 0) {
                                 Log.w(TAG, "Empty response from server for GET path: " + path + " (HTTP_OK)");
-                                // 서버가 빈 응답을 보냈지만 정상(200 OK)인 경우, 빈 JSON 객체로 처리하거나
-                                // 또는 에러로 간주할 수 있습니다. 여기서는 빈 객체로 가정합니다.
+                                // 서버가 빈 응답을 보냈지만 정상(200)인 경우, 빈 JSON 객체로 처리하거나 에러로 간주할 수 있음. 여기서는 빈 객체로 가정
                                 responseJsonString = "{}";
                             } else {
                                 responseJsonString = buffer.toString();
@@ -696,7 +676,7 @@ public class MainActivity extends AppCompatActivity implements
         //robot.turnBy(10);
 
         Log.d(TAG, "Pick action triggered");
-        // Toast.makeText(this, "Pick action: Turning robot", Toast.LENGTH_SHORT).show(); // 사용자 피드백 (선택 사항)
+        // Toast.makeText(this, "Pick action: Turning robot", Toast.LENGTH_SHORT).show(); // 사용자 피드백 (선택)
     }
 
     public void Pong() { // 홈베이스 복귀 알고리즘 구현
@@ -704,7 +684,7 @@ public class MainActivity extends AppCompatActivity implements
         Log.d(TAG, "Pong action triggered: Stopping movement and attempting to go to homebase.");
         if (robot != null && robot.isReady()) {
             robot.stopMovement(); // 로봇 이동 즉시 중지
-            robot.goTo("홈베이스"); // "홈베이스"라는 저장된 위치로 이동 시도
+            robot.goTo("홈베이스"); // "홈베이스"로 이동 시도
         } else {
             Log.w(TAG, "Pong action: Robot not ready or null.");
             Toast.makeText(this, "로봇이 준비되지 않아 홈베이스로 이동할 수 없습니다.", Toast.LENGTH_SHORT).show();
@@ -759,10 +739,10 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onGoToLocationStatusChanged(@NonNull String location, @NonNull String status, int descriptionId, @NonNull String description) {
-        // 로봇이 특정 저장된 위치로 이동하는 과정(시작, 계산 중, 이동 중, 완료, 중단)에 대한 상태 변경을 알려줍니다.
+        // 로봇이 특정 저장된 위치로 이동하는 과정(시작, 계산 중, 이동 중, 완료, 중단)에 대한 상태 변경을 알려줌
         Log.d(TAG, "onGoToLocationStatusChanged: location=" + location + ", status=" + status + ", descriptionId=" + descriptionId + ", description=" + description);
 
-        // status 문자열은 OnGoToLocationStatusChangedListener에 정의된 상수들과 비교할 수 있습니다.
+        // status 문자열은 OnGoToLocationStatusChangedListener에 정의된 상수들과 비교할 수 있음
         // 예: OnGoToLocationStatusChangedListener.START, OnGoToLocationStatusChangedListener.CALCULATING,
         // OnGoToLocationStatusChangedListener.GOING, OnGoToLocationStatusChangedListener.COMPLETE, OnGoToLocationStatusChangedListener.ABORT
 
@@ -774,7 +754,7 @@ public class MainActivity extends AppCompatActivity implements
                 Toast.makeText(this, "홈베이스 이동 중단: " + description, Toast.LENGTH_LONG).show();
             }
         }
-        // descriptionId를 사용하여 실패 또는 중단 이유를 더 구체적으로 파악할 수도 있습니다.
+        // descriptionId를 사용하여 실패 또는 중단 이유를 더 구체적으로 파악할 수도 있음
         // 예: if (descriptionId == OnGoToLocationStatusChangedListener.DESCRIPTION_REASON_PATH_NOT_FOUND) { ... }
         // 예: if (descriptionId == OnGoToLocationStatusChangedListener.DESCRIPTION_REASON_REPOSSESSION_REQUIRED) { ... }
 
@@ -788,8 +768,8 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onRobotReady(boolean isReady) {
 
-        // 로봇 SDK가 사용 준비가 되었는지(isReady = true) 또는
-        // 연결이 해제되거나 사용할 수 없는 상태인지(isReady = false)를 알려주는 핵심 콜백입니다.
+        // 로봇 SDK가 사용 준비가 되었는 지(isReady = true) 또는
+        // 연결이 해제되거나 사용할 수 없는 상태인 지(isReady = false)를 알려주는 핵심 콜백
         if (isFinishing() || isDestroyed()) { // 액티비티가 종료 중이거나 이미 파괴된 경우, 작업 중단
             Log.w(TAG, "onRobotReady called but Activity is finishing or destroyed.");
             return;
@@ -798,14 +778,14 @@ public class MainActivity extends AppCompatActivity implements
         if (isReady) { // 로봇 SDK가 준비되었을 때
             Log.i(TAG, "Robot is ready.");
             try {
-                // 현재 액티비티 정보를 사용하여 로봇 SDK를 시작합니다.
-                // 이는 로봇의 기능을 앱과 동기화하고, SDK가 액티비티의 컨텍스트를 인식하도록 합니다.
+                // 현재 액티비티 정보를 사용하여 로봇 SDK를 시작
+                // 이는 로봇의 기능을 앱과 동기화하고, SDK가 액티비티의 컨텍스트를 인식하도록 함
                 final ActivityInfo activityInfo = getPackageManager().getActivityInfo(getComponentName(), PackageManager.GET_META_DATA);
                 robot.onStart(activityInfo); // Temi SDK에 현재 액티비티를 알리고 SDK 서비스 시작
                 Log.i(TAG, "Robot SDK onStart() called successfully.");
 
-                // 로봇이 준비되었을 때 특정 초기 동작을 수행할 수 있습니다.
-                // 예를 들어, 특정 위치로 이동하거나, 사용자에게 안내 메시지를 음성으로 전달할 수 있습니다.
+                // 로봇이 준비되었을 때 특정 초기 동작을 수행할 수 있음
+                // 예를 들어, 특정 위치로 이동하거나, 사용자에게 안내 메시지를 음성으로 전달할 수 있음
                 // robot.goTo("대기 장소");
                 // robot.speak(TtsRequest.create("안녕하세요, 무엇을 도와드릴까요?", false));
 
@@ -819,7 +799,7 @@ public class MainActivity extends AppCompatActivity implements
         } else { // 로봇 SDK가 준비되지 않았거나 연결이 끊겼을 때
             Log.w(TAG, "Robot is not ready.");
             Toast.makeText(this, "로봇 연결이 해제되었거나 준비되지 않았습니다.", Toast.LENGTH_SHORT).show();
-            // 로봇이 준비되지 않으면 로봇과 관련된 주기적인 작업(예: 공 추적)을 중단해야 합니다.
+            // 로봇이 준비되지 않으면 로봇과 관련된 주기적인 작업(예: 공 추적)을 중단해야 함
             stopPeriodicMovement();
         }
 
